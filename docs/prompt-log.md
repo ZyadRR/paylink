@@ -41,6 +41,30 @@ This document summarizes the AI assistance used during the preparation and revie
 * **AI Output:** Generated the diagram as a PlantUML file (`docs/diagrams/sequence_pay_bill.puml`).
 * **Review and Changes:** Checked that the participants (Customer, PayLink System, Biller, Notification Service) exist in the document, and that the flow follows FR-8 to FR-13 (inquiry and fee preview before any hold, idempotency key, limits/velocity/fraud checks, hold before the biller call, release only on Failed). The three required alt blocks are present: wrong login, insufficient balance, payment failed. Issues found: (a) the 10-second timeout → Unknown path (funds stay held, customer told "processing") is missing (FR-13); (b) TopUpNet returns "accepted" first and a callback later (FR-14), but the diagram shows a single synchronous result; (c) limit/velocity rejection (FR-18, FR-19) is not shown as a separate outcome; (d) ledger and audit entries for hold and release are not shown (FR-5, FR-25); (e) wrong-login handling is an assumption, since the document does not define login rules.
 
+## 7. Repository Setup, Branch Protection and PR Rules (DevOps)
+
+* **Prompt:** Request for guidance on the DevOps Engineer role (GitHub repository, protecting main, pull request rules, Docker, Docker Compose, GitHub Actions), including how to install Docker and Git on Windows.
+* **AI Output:** Suggested an ordered task list, Git Bash commands for the repo and folder structure, and a ruleset for main (require a pull request, 1 approval, block force pushes).
+* **Review and Changes:** The first commands were written for PowerShell, but the team uses Git Bash, so the Git Bash versions were used. Docker Desktop first showed "WSL not installed"; fixed with `wsl --install` and a restart. The AI warned that branch protection may not be enforced on a free private repo, so the repository was made public. A test direct push to main was rejected, confirming the rule works. Because the owner cannot approve their own pull request, Repository admin was added to the ruleset bypass list (pull requests only) for the initial setup PRs. Teammates must approve all later PRs.
+
+## 8. NestJS Skeleton, Dockerfile and Docker Compose (DevOps)
+
+* **Prompt:** Request for a Dockerfile and docker-compose.yml for a NestJS application with a relational database, after the team chose NestJS.
+* **AI Output:** Suggested a multi-stage Dockerfile, a .dockerignore, and a Compose file running the app and PostgreSQL 16 with a healthcheck.
+* **Review and Changes:** During project creation we chose "none" for the optional AI agent skills and the optional monitoring add-on, and CJS with Jest as the test setup. The Dockerfile uses Node 22 while CI uses Node 24; both work and were left as is. Docker Compose was run from a fresh clone: the image built, the database became healthy, and NestJS started. PostgreSQL is still an assumption until the team confirms it.
+
+## 9. GitHub Actions CI Pipeline and Coverage Threshold (DevOps)
+
+* **Prompt:** Request for a CI workflow that builds, lints and tests on every push, and for enforcing the 70% coverage rule (NFR-6) after the first coverage run showed 50%.
+* **AI Output:** Suggested ci.yml (lint, test with coverage, build, Docker build) and a coverage threshold of 70% lines.
+* **Review and Changes:** The AI first suggested putting the threshold in a "jest" section of package.json, but the generated project uses backend/jest.config.ts, so the settings had no effect there. They were removed from package.json and added to jest.config.ts, with main.ts and *.module.ts excluded from coverage. A generated cache file (tsconfig.build.tsbuildinfo) was committed by mistake, then untracked and ignored. CI passed on the pull request. The threshold currently covers only the skeleton code and should later be limited to the domain logic.
+
+## 10. README, .env.example and CONTRIBUTING (DevOps)
+
+* **Prompt:** Request for a README with run instructions, an .env.example file, and a CONTRIBUTING.md with branch naming and review rules.
+* **AI Output:** Drafted the three files.
+* **Review and Changes:** The files were added to the repository through a pull request and merged after CI passed.
+
 ## Note
 
 AI-generated suggestions were treated as assistance only. The diagrams and design decisions should be reviewed against the official project requirements and confirmed by the project team before final submission.
