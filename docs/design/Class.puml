@@ -1,0 +1,429 @@
+
+@startuml
+title PayLink - Domain Class Diagram
+
+scale 0.8
+
+skinparam classAttributeIconSize 0
+
+' =========================
+' ENUMS
+' =========================
+
+enum VerificationLevel {
+    BASIC
+    VERIFIED
+}
+
+enum AccountStatus {
+    ACTIVE
+    BLOCKED
+}
+
+enum PaymentStatus {
+    Initiated
+    FundsHeld
+    SentToBiller
+    Completed
+    Failed
+    Unknown
+    Rejected
+    Refunded
+}
+
+enum EntryType {
+    TOPUP
+    HOLD
+    RELEASE
+    CHARGE
+    FEE_INCOME
+    COMMISSION
+    REFUND
+}
+
+enum Channel {
+    SMS
+    EMAIL
+    PUSH
+}
+
+enum NotificationStatus {
+    PENDING
+    SENT
+    FAILED
+    UNDELIVERED
+}
+
+' =========================
+' ACCOUNTS AND WALLET
+' =========================
+
+package "Accounts and Wallet" {
+
+    abstract class User {
+        - userId: Long
+        - name: String
+        - phone: String
+        - accountStatus: AccountStatus
+        + block()
+        + unblock()
+    }
+
+    class Customer {
+        - verificationLevel: VerificationLevel
+        + register()
+        + upgradeVerification()
+    }
+
+    class Agent {
+        + initiatePayment()
+    }
+
+    class StaffUser {
+        - role: String
+    }
+
+    class Wallet {
+        - walletId: Long
+        - /availableBalance: Decimal
+        - /heldBalance: Decimal
+        + getBalance()
+        + placeHold()
+        + releaseHold()
+    }
+
+    class LedgerEntry {
+        - entryId: Long
+        - amount: Decimal
+        - entryType: EntryType
+        - createdAt: DateTime
+    }
+
+    class Hold {
+        - holdId: Long
+        - amount: Decimal
+        - status: String
+        - createdAt: DateTime
+        + release()
+        + capture()
+    }
+
+    class TopUp {
+        - topUpId: Long
+        - amount: Decimal
+        - method: String
+        - status: String
+    }
+}
+
+' =========================
+' PAYMENT PROCESSING
+' =========================
+
+package "Payment Processing" {
+
+    class Payment {
+        - paymentId: Long
+        - reference: String
+        - amount: Decimal
+        - fee: Decimal
+        - totalAmount: Decimal
+        - status: PaymentStatus
+        - idempotencyKey: String
+        - billerReference: String
+        - failureReason: String
+        - createdAt: DateTime
+        + initiate()
+        + holdFunds()
+        + sendToBiller()
+        + complete()
+        + fail(reason)
+        + reject(reason)
+        + markUnknown()
+        + refund()
+    }
+
+    class PaymentEvent {
+        - eventId: Long
+        - fromStatus: PaymentStatus
+        - toStatus: PaymentStatus
+        - reason: String
+        - createdAt: DateTime
+    }
+
+    class Refund {
+        - refundId: Long
+        - amount: Decimal
+        - type: String
+        - reason: String
+        - status: String
+        - requestedAt: DateTime
+        + requestRefund()
+        + approve()
+    }
+}
+
+' =========================
+' BILLER CATALOG
+' =========================
+
+package "Biller Catalog" {
+
+    class Biller {
+        - billerId: Long
+        - name: String
+        - protocol: String
+        - status: String
+    }
+
+    class Service {
+        - serviceId: Long
+        - name: String
+        - requiredFields: String
+        - minAmount: Decimal
+        - maxAmount: Decimal
+        - status: String
+    }
+
+    class BillInquiry {
+        - inquiryId: Long
+        - accountNumber: String
+        - billAmount: Decimal
+        - inquiryDate: DateTime
+    }
+}
+
+' =========================
+' BILLER INTEGRATION
+' =========================
+
+package "Biller Integration" {
+
+    interface BillerAdapter {
+        + inquire()
+        + pay()
+        + queryStatus()
+    }
+
+    class ElectroCoAdapter
+    class AquaCoAdapter
+
+    class TopUpNetAdapter {
+        + handleCallback()
+    }
+}
+
+' =========================
+' FEES AND COMMISSIONS
+' =========================
+
+package "Fees and Commissions" {
+
+    class FeeRule {
+        - feeRuleId: Long
+        - feeType: String
+        - fixedAmount: Decimal
+        - percentage: Decimal
+        - minFee: Decimal
+        - tierThreshold: Decimal
+        - tierLowFee: Decimal
+        - tierHighFee: Decimal
+        + calculateFee(amount)
+    }
+
+    class Promotion {
+        - promotionId: Long
+        - startDate: Date
+        - endDate: Date
+        + isActive()
+    }
+
+    class Commission {
+        - commissionId: Long
+        - rate: Decimal
+        - amount: Decimal
+        - status: String
+        + calculateCommission()
+    }
+}
+
+' =========================
+' FRAUD CHECKS
+' =========================
+
+package "Fraud Checks" {
+
+    interface FraudRule {
+        + check(payment)
+    }
+
+    class DailyLimitRule
+    class VelocityRule
+    class BlockedAccountRule
+}
+
+' =========================
+' NOTIFICATIONS
+' =========================
+
+package "Notifications" {
+
+    class Notification {
+        - notificationId: Long
+        - channel: Channel
+        - message: String
+        - status: NotificationStatus
+        - retryCount: Integer
+        + send()
+        + retry()
+    }
+}
+
+' =========================
+' RECONCILIATION
+' =========================
+
+package "Reconciliation" {
+
+    class SettlementFile {
+        - fileId: Long
+        - fileDate: Date
+        - fileName: String
+    }
+
+    class SettlementRecord {
+        - recordId: Long
+        - billerReference: String
+        - amount: Decimal
+        - status: String
+    }
+
+    class Reconciliation {
+        - reconciliationId: Long
+        - status: String
+        - createdAt: DateTime
+        + comparePayments()
+        + generateReport()
+    }
+
+    class ReconciliationDifference {
+        - differenceId: Long
+        - differenceType: String
+        - details: String
+        - reviewStatus: String
+    }
+}
+
+' =========================
+' AUDIT LOG
+' =========================
+
+class AuditLog {
+    - auditId: Long
+    - action: String
+    - entityType: String
+    - entityId: Long
+    - reason: String
+    - createdAt: DateTime
+}
+
+' =========================
+' INHERITANCE
+' =========================
+
+User <|-- Customer
+User <|-- Agent
+User <|-- StaffUser
+
+' =========================
+' INTERFACE IMPLEMENTATIONS
+' =========================
+
+BillerAdapter <|.. ElectroCoAdapter
+BillerAdapter <|.. AquaCoAdapter
+BillerAdapter <|.. TopUpNetAdapter
+
+FraudRule <|.. DailyLimitRule
+FraudRule <|.. VelocityRule
+FraudRule <|.. BlockedAccountRule
+
+' =========================
+' ACCOUNTS RELATIONSHIPS
+' =========================
+
+Customer "1" -- "0..1" Wallet : owns
+
+Wallet "1" -- "0..*" LedgerEntry : records
+Wallet "1" -- "0..*" Hold : contains
+Wallet "1" -- "0..*" TopUp : receives
+
+TopUp "1" -- "1" LedgerEntry : creates
+
+User "0..1" -- "0..*" AuditLog : performs
+
+' =========================
+' PAYMENT RELATIONSHIPS
+' =========================
+
+Customer "1" -- "0..*" Payment : makes
+Agent "0..1" -- "0..*" Payment : assists
+
+Payment "0..*" -- "1" Service : for
+Payment "0..*" -- "0..1" BillInquiry : based on
+
+Payment "1" -- "0..1" Hold : reserves
+
+Payment "0..1" -- "0..*" LedgerEntry : generates
+
+Payment "1" -- "1..*" PaymentEvent : history
+
+Payment "1" -- "0..1" Refund : may have
+
+Payment "1" -- "0..*" Notification : triggers
+Customer "1" -- "0..*" Notification : receives
+
+' =========================
+' BILLER RELATIONSHIPS
+' =========================
+
+Biller "1" -- "1..*" Service : provides
+
+Service "1" -- "0..*" BillInquiry : queried through
+
+Biller "1" -- "1" BillerAdapter : uses
+
+' =========================
+' FEES RELATIONSHIPS
+' =========================
+
+Service "1" -- "1..*" FeeRule : uses
+
+Biller "1" -- "0..*" Promotion : offers
+
+Promotion "0..*" -- "0..*" FeeRule : affects
+
+Payment "1" -- "0..1" Commission : generates
+
+Agent "1" -- "0..*" Commission : receives
+
+' =========================
+' FRAUD RELATIONSHIP
+' =========================
+
+Payment ..> FraudRule : checked by
+
+' =========================
+' RECONCILIATION RELATIONSHIPS
+' =========================
+
+Biller "1" -- "0..*" SettlementFile : provides
+
+SettlementFile "1" -- "1..*" SettlementRecord : contains
+
+SettlementFile "1" -- "0..*" Reconciliation : processed by
+
+Reconciliation "1" -- "0..*" ReconciliationDifference : reports
+
+ReconciliationDifference "0..*" -- "0..1" Payment : concerns
+
+@enduml

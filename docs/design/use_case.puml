@@ -1,0 +1,78 @@
+@startuml
+title PayLink - Use Case Diagram (Behavioral Design)
+
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Customer" as Customer
+actor "Agent\n(Retail Outlet)" as Agent
+actor "Support Employee" as Support
+actor "Administrator" as Admin
+actor "Biller Systems\n(ElectroCo, AquaCo, TopUpNet)" as Billers
+actor "Notification Service\n(SMS / Push)" as Notify
+actor "Simulated Top-up Provider" as TopupProvider
+
+rectangle "PayLink System" {
+  usecase "Register Account" as UC_Register
+  usecase "Upgrade Verification\n(to Verified)" as UC_Verify
+  usecase "Login" as UC_Login
+  usecase "View Wallet & Transaction History" as UC_ViewWallet
+  usecase "Top Up Wallet\n(Simulated Card / Agent)" as UC_TopUp
+  usecase "View Biller Requirements" as UC_ViewReq
+  usecase "Inquire Bill & Fee Preview" as UC_Inquire
+  usecase "Pay a Bill" as UC_PayBill
+  usecase "Request Refund\n(Completed Payment)" as UC_RequestRefund
+
+  usecase "Manage Billers & Services\n(Add/Update/Disable)" as UC_ManageBillers
+  usecase "Configure Fees & Limits" as UC_ConfigFees
+  usecase "View Daily Operational Totals" as UC_DailyTotals
+
+  usecase "Lookup Payment by Reference" as UC_Lookup
+  usecase "Review Payment History/Exceptions" as UC_Review
+  usecase "Block / Unblock Account" as UC_BlockUnblock
+  usecase "Approve Refund Request" as UC_ApproveRefund
+  usecase "Run/View Daily Reconciliation Report" as UC_Reconcile
+}
+
+' Customer use cases
+Customer --> UC_Register
+Customer --> UC_Verify
+Customer --> UC_ViewWallet
+Customer --> UC_TopUp
+Customer --> UC_ViewReq
+Customer --> UC_Inquire
+Customer --> UC_PayBill
+Customer --> UC_RequestRefund
+
+' Agent
+Agent --> UC_PayBill
+
+' Support
+Support --> UC_Lookup
+Support --> UC_Review
+Support --> UC_BlockUnblock
+Support --> UC_ApproveRefund
+Support --> UC_Reconcile
+
+' Admin
+Admin --> UC_ManageBillers
+Admin --> UC_ConfigFees
+Admin --> UC_DailyTotals
+Admin --> UC_BlockUnblock
+
+' External interactions (system to external actors)
+UC_PayBill --> Billers
+UC_Inquire --> Billers
+UC_TopUp --> TopupProvider
+UC_PayBill --> Notify
+
+' Includes / Extends
+UC_PayBill ..> UC_Login : <<include>>
+UC_TopUp ..> UC_Login : <<include>>
+UC_ViewWallet ..> UC_Login : <<include>>
+UC_Inquire ..> UC_Login : <<include>>
+UC_RequestRefund ..> UC_Login : <<include>>
+
+UC_Verify ..> UC_Login : <<include>>
+
+@enduml
