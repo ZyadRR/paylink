@@ -1,0 +1,54 @@
+@startuml
+title PayLink - Payment State Diagram
+
+[*] --> Initiated : Payment request created/confirmed (FR9)
+
+state Initiated
+state FundsHeld
+state SentToBiller
+state Unknown
+state Completed
+state Failed
+state Rejected
+state Refunded
+
+Initiated --> FundsHeld : Validation/fraud checks passed and sufficient funds; total held (FR12)
+Initiated --> Rejected : Amount/limits/velocity or pre-checks failed; no funds charged (FR18, BR2, BR8)
+
+FundsHeld --> SentToBiller : Biller request sent (FR12)
+
+SentToBiller --> Completed : Biller confirms success (immediate or async callback) (FR14)
+SentToBiller --> Failed : Biller confirms failure (immediate or async callback); hold released (FR12, FR14)
+SentToBiller --> Unknown : No timely response within 10 seconds; funds remain held (FR13, BR9)
+
+Unknown --> Completed : Confirmed success after re-query/reconciliation (assumed based on BR10)
+Unknown --> Failed : Confirmed failure after re-query/reconciliation; hold released (assumed based on BR10)
+
+Failed --> Refunded : Refund processed (per brief note: Failed → Refunded) 
+
+Completed --> Refunded : Refund approved by Support for completed payment (FR27; transition detail may need team confirmation)
+
+Completed --> [*]
+Rejected --> [*]
+Refunded --> [*]
+Failed --> [*]
+
+note right of Unknown
+  Re-query at 1, 5, 15 minutes (BR10),
+  then wait for reconciliation/support review.
+  Funds stay held while Unknown.
+end note
+
+note bottom of Rejected
+  Final state: no money held/charged.
+end note
+
+note bottom of Completed
+  Final state: payment successful.
+end note
+
+note bottom of Refunded
+  Final state: funds returned/refund completed.
+end note
+
+@enduml

@@ -1,0 +1,442 @@
+
+@startuml PayLink_ER_Diagram
+
+title PayLink - Entity Relationship Diagram
+
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam entity {
+    BackgroundColor White
+    BorderColor #555555
+}
+
+' =====================================
+' 1. USERS AND WALLETS
+' =====================================
+
+entity "Users" as Users {
+  * user_id : BIGINT <<PK>>
+  --
+  full_name : VARCHAR
+  email : VARCHAR <<UNIQUE>>
+  phone : VARCHAR
+  password_hash : VARCHAR
+  role : VARCHAR
+  verification_level : VARCHAR
+  account_status : VARCHAR
+  blocked_until : TIMESTAMP
+  block_reason : VARCHAR
+  created_at : TIMESTAMP
+}
+
+entity "Wallets" as Wallets {
+  * wallet_id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK, UNIQUE>>
+  currency : VARCHAR
+  created_at : TIMESTAMP
+}
+
+' =====================================
+' 2. WALLET LEDGER AND MONEY MOVEMENTS
+' =====================================
+
+entity "Ledger_Entries" as Ledger {
+  * entry_id : BIGINT <<PK>>
+  --
+  wallet_id : BIGINT <<FK>>
+  payment_id : BIGINT <<FK, NULL>>
+  topup_id : BIGINT <<FK, NULL>>
+  refund_request_id : BIGINT <<FK, NULL>>
+  commission_id : BIGINT <<FK, NULL>>
+  hold_id : BIGINT <<FK, NULL>>
+  entry_type : VARCHAR
+  balance_bucket : VARCHAR
+  amount : DECIMAL(12,2)
+  created_at : TIMESTAMP
+}
+
+entity "Holds" as Holds {
+  * hold_id : BIGINT <<PK>>
+  --
+  wallet_id : BIGINT <<FK>>
+  payment_id : BIGINT <<FK>>
+  amount : DECIMAL(12,2)
+  status : VARCHAR
+  created_at : TIMESTAMP
+  released_at : TIMESTAMP
+}
+
+entity "Top_Ups" as TopUps {
+  * topup_id : BIGINT <<PK>>
+  --
+  wallet_id : BIGINT <<FK>>
+  agent_id : BIGINT <<FK, NULL>>
+  amount : DECIMAL(12,2)
+  payment_method : VARCHAR
+  status : VARCHAR
+  created_at : TIMESTAMP
+}
+
+' =====================================
+' 3. BILLER CATALOG
+' =====================================
+
+entity "Billers" as Billers {
+  * biller_id : BIGINT <<PK>>
+  --
+  name : VARCHAR
+  protocol : VARCHAR
+  status : VARCHAR
+}
+
+entity "Services" as Services {
+  * service_id : BIGINT <<PK>>
+  --
+  biller_id : BIGINT <<FK>>
+  name : VARCHAR
+  min_amount : DECIMAL(12,2)
+  max_amount : DECIMAL(12,2)
+  status : VARCHAR
+}
+
+entity "Required_Fields" as RequiredFields {
+  * field_id : BIGINT <<PK>>
+  --
+  service_id : BIGINT <<FK>>
+  field_name : VARCHAR
+  field_type : VARCHAR
+  is_required : BOOLEAN
+  validation_rule : VARCHAR
+}
+
+' =====================================
+' 4. BILL INQUIRIES AND PAYMENTS
+' =====================================
+
+entity "Bill_Inquiries" as Inquiries {
+  * inquiry_id : BIGINT <<PK>>
+  --
+  customer_id : BIGINT <<FK>>
+  service_id : BIGINT <<FK>>
+  inquiry_reference : VARCHAR
+  input_data : TEXT
+  bill_amount : DECIMAL(12,2)
+  created_at : TIMESTAMP
+}
+
+entity "Payments" as Payments {
+  * payment_id : BIGINT <<PK>>
+  --
+  customer_id : BIGINT <<FK>>
+  agent_id : BIGINT <<FK, NULL>>
+  service_id : BIGINT <<FK>>
+  inquiry_id : BIGINT <<FK, NULL>>
+  payment_reference : VARCHAR
+  idempotency_key : VARCHAR <<UNIQUE>>
+  amount : DECIMAL(12,2)
+  fee : DECIMAL(12,2)
+  total_amount : DECIMAL(12,2)
+  status : VARCHAR
+  retry_count : INT
+  next_retry_at : TIMESTAMP
+  created_at : TIMESTAMP
+  completed_at : TIMESTAMP
+}
+
+entity "Payment_Events" as PaymentEvents {
+  * event_id : BIGINT <<PK>>
+  --
+  payment_id : BIGINT <<FK>>
+  old_status : VARCHAR
+  new_status : VARCHAR
+  description : TEXT
+  created_at : TIMESTAMP
+}
+
+entity "Biller_Callbacks" as Callbacks {
+  * callback_id : BIGINT <<PK>>
+  --
+  payment_id : BIGINT <<FK>>
+  external_callback_id : VARCHAR <<UNIQUE>>
+  callback_status : VARCHAR
+  received_at : TIMESTAMP
+  processed_at : TIMESTAMP
+}
+
+' =====================================
+' 5. FEES AND PROMOTIONS
+' =====================================
+
+entity "Fee_Rules" as FeeRules {
+  * fee_rule_id : BIGINT <<PK>>
+  --
+  service_id : BIGINT <<FK>>
+  fee_type : VARCHAR
+  fixed_amount : DECIMAL(12,2)
+  percentage_rate : DECIMAL(6,3)
+  minimum_fee : DECIMAL(12,2)
+  is_active : BOOLEAN
+}
+
+entity "Fee_Rule_Tiers" as FeeTiers {
+  * tier_id : BIGINT <<PK>>
+  --
+  fee_rule_id : BIGINT <<FK>>
+  min_amount : DECIMAL(12,2)
+  max_amount : DECIMAL(12,2)
+  fee_amount : DECIMAL(12,2)
+}
+
+entity "Promotions" as Promotions {
+  * promotion_id : BIGINT <<PK>>
+  --
+  biller_id : BIGINT <<FK>>
+  start_date : TIMESTAMP
+  end_date : TIMESTAMP
+  is_active : BOOLEAN
+}
+
+' =====================================
+' 6. LIMITS AND FRAUD CONFIGURATION
+' =====================================
+
+entity "Limit_Rules" as LimitRules {
+  * limit_id : BIGINT <<PK>>
+  --
+  verification_level : VARCHAR
+  limit_type : VARCHAR
+  limit_value : DECIMAL(12,2)
+  window_seconds : INT
+  block_duration_seconds : INT
+  is_active : BOOLEAN
+  updated_by : BIGINT <<FK>>
+  updated_at : TIMESTAMP
+}
+
+' =====================================
+' 7. REFUNDS AND AGENT COMMISSIONS
+' =====================================
+
+entity "Refund_Requests" as RefundRequests {
+  * refund_request_id : BIGINT <<PK>>
+  --
+  payment_id : BIGINT <<FK>>
+  requested_by : BIGINT <<FK>>
+  approved_by : BIGINT <<FK, NULL>>
+  amount : DECIMAL(12,2)
+  reason : TEXT
+  status : VARCHAR
+  created_at : TIMESTAMP
+  approved_at : TIMESTAMP
+}
+
+entity "Commissions" as Commissions {
+  * commission_id : BIGINT <<PK>>
+  --
+  payment_id : BIGINT <<FK>>
+  agent_id : BIGINT <<FK>>
+  amount : DECIMAL(12,2)
+  status : VARCHAR
+  created_at : TIMESTAMP
+}
+
+' =====================================
+' 8. NOTIFICATIONS AND AUDIT
+' =====================================
+
+entity "Notifications" as Notifications {
+  * notification_id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK>>
+  payment_id : BIGINT <<FK>>
+  channel : VARCHAR
+  message : TEXT
+  status : VARCHAR
+  retry_count : INT
+  created_at : TIMESTAMP
+}
+
+entity "Audit_Logs" as AuditLogs {
+  * audit_id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK, NULL>>
+  ledger_entry_id : BIGINT <<FK, NULL>>
+  action : VARCHAR
+  entity_type : VARCHAR
+  entity_id : BIGINT
+  reason : TEXT
+  details : TEXT
+  created_at : TIMESTAMP
+}
+
+' =====================================
+' 9. SETTLEMENT AND RECONCILIATION
+' =====================================
+
+entity "Settlement_Files" as SettlementFiles {
+  * file_id : BIGINT <<PK>>
+  --
+  biller_id : BIGINT <<FK>>
+  file_name : VARCHAR
+  file_date : DATE
+  status : VARCHAR
+}
+
+entity "Settlement_Records" as SettlementRecords {
+  * record_id : BIGINT <<PK>>
+  --
+  file_id : BIGINT <<FK>>
+  payment_reference : VARCHAR
+  amount : DECIMAL(12,2)
+  biller_status : VARCHAR
+}
+
+entity "Reconciliation_Runs" as ReconciliationRuns {
+  * reconciliation_id : BIGINT <<PK>>
+  --
+  file_id : BIGINT <<FK>>
+  started_at : TIMESTAMP
+  completed_at : TIMESTAMP
+  status : VARCHAR
+  report_summary : TEXT
+}
+
+entity "Reconciliation_Differences" as Differences {
+  * difference_id : BIGINT <<PK>>
+  --
+  reconciliation_id : BIGINT <<FK>>
+  record_id : BIGINT <<FK>>
+  payment_id : BIGINT <<FK, NULL>>
+  difference_type : VARCHAR
+  description : TEXT
+  status : VARCHAR
+}
+
+' =====================================
+' RELATIONSHIPS
+' =====================================
+
+' Users and Wallets
+Users ||--|| Wallets : owns
+Users ||--o{ TopUps : initiates
+Users ||--o{ Payments : customer
+Users |o--o{ Payments : agent
+
+' Wallet money operations
+Wallets ||--o{ Ledger : records
+Wallets ||--o{ Holds : has
+Wallets ||--o{ TopUps : receives
+
+' Biller Catalog
+Billers ||--o{ Services : provides
+Services ||--o{ RequiredFields : requires
+
+' Inquiries and Payments
+Users ||--o{ Inquiries : makes
+Services ||--o{ Inquiries : queried_for
+Services ||--o{ Payments : used_for
+Inquiries |o--o{ Payments : based_on
+
+' Payment lifecycle and integration
+Payments ||--o{ PaymentEvents : has_history
+Payments ||--o{ Callbacks : receives
+Payments ||--o{ Holds : reserves
+Payments ||--o{ Ledger : generates
+Payments ||--o{ Notifications : triggers
+
+' Top-ups and Ledger
+TopUps ||--o{ Ledger : creates
+
+' Fee configuration
+Services ||--o{ FeeRules : has
+FeeRules ||--o{ FeeTiers : defines
+Billers ||--o{ Promotions : offers
+
+' Limits
+Users ||--o{ LimitRules : configures
+
+' Refund requests
+Payments ||--o{ RefundRequests : has_requests
+Users ||--o{ RefundRequests : requests
+Users |o--o{ RefundRequests : approves
+RefundRequests ||--o{ Ledger : creates
+
+' Agent commissions
+Payments ||--o| Commissions : generates
+Users ||--o{ Commissions : earns
+Commissions ||--o{ Ledger : credits
+
+' Notifications and audit
+Users ||--o{ Notifications : receives
+Users |o--o{ AuditLogs : performs
+Ledger |o--o{ AuditLogs : audited_by
+
+' Holds and ledger movements
+Holds ||--o{ Ledger : records
+
+' Settlement and reconciliation
+Billers ||--o{ SettlementFiles : provides
+SettlementFiles ||--o{ SettlementRecords : contains
+SettlementFiles ||--o{ ReconciliationRuns : reconciled_in
+ReconciliationRuns ||--o{ Differences : reports
+SettlementRecords ||--o{ Differences : may_cause
+Payments |o--o{ Differences : may_match
+
+' Limit configuration updates
+Users ||--o{ LimitRules : updates
+
+' =====================================
+' DESIGN NOTES
+' =====================================
+
+note bottom of Wallets
+  Available and held balances
+  are derived from ledger entries.
+  Do not store wallet balances
+  as directly editable values.
+end note
+
+note bottom of Ledger
+  Every money movement creates
+  an immutable ledger entry.
+
+  Use entry_type and balance_bucket
+  to distinguish available and held
+  balance movements.
+
+  Each entry must reference its
+  originating transaction.
+end note
+
+note bottom of Payments
+  Allowed lifecycle states:
+  Initiated, FundsHeld, SentToBiller,
+  Completed, Failed, Unknown,
+  Rejected and Refunded.
+
+  idempotency_key must be unique.
+  Money values use DECIMAL.
+end note
+
+note bottom of RefundRequests
+  This table represents customer
+  refund requests for completed
+  payments (FR-27).
+
+  Failed payment hold release is
+  handled by the payment lifecycle
+  and ledger, not by this request.
+end note
+
+note bottom of LimitRules
+  Supports configurable rules such as:
+  Daily limit by verification level,
+  minimum and maximum payment,
+  and velocity count/window/block.
+end note
+
+@enduml

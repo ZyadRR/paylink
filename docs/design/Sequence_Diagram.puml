@@ -1,0 +1,104 @@
+
+@startuml PayLink_Refund_Failed_Payment
+
+title PayLink - Sequence Diagram: Refund a Failed Payment
+
+autonumber
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor Customer
+
+participant "Payment API" as API
+participant "Payment Processing\nService" as Payment
+participant "Wallet & Hold\nService" as Wallet
+participant "Ledger Service" as Ledger
+participant "Biller Adapter" as Adapter
+participant "Biller" as Biller
+participant "Notification Service" as Notify
+participant "SMS Provider" as SMS
+participant "Push Provider" as Push
+
+== Payment Initiation ==
+
+Customer -> API : Confirm payment(paymentId)
+API -> Payment : processPayment(paymentId)
+
+Payment -> Wallet : placeHold(walletId, totalAmount)
+Wallet -> Ledger : record hold movement
+Ledger --> Wallet : Ledger entries created
+Wallet --> Payment : Hold placed successfully
+
+Payment -> Payment : Change status to FundsHeld
+Payment -> Adapter : sendPayment(paymentReference,\ntotalAmount)
+Adapter -> Biller : Submit payment request
+
+== Biller Response ==
+
+Biller --> Adapter : Payment rejected(errorCode,\nreason)
+Adapter --> Payment : Payment failed(errorCode,\nreason)
+
+Payment -> Payment : Validate current payment state
+Payment -> Payment : Update status:\nSentToBiller -> Failed
+Payment -> Payment : Save Payment Event
+
+== Release Held Funds ==
+
+Payment -> Wallet : releaseHold(paymentId)
+Wallet -> Wallet : Verify hold is active\nand not already released
+
+Wallet -> Ledger : Record release movements
+Ledger -> Ledger : Debit held balance\nCredit available balance
+Ledger --> Wallet : Ledger entries saved
+
+Wallet -> Wallet : Mark hold as Released
+Wallet --> Payment : Hold released successfully
+
+Payment -> Payment : Update status:\nFailed -> Refunded
+Payment -> Payment : Save Payment Event
+
+== Notify Customer ==
+
+Payment -> Notify : sendFailureNotification(\npaymentReference, reason)
+
+par SMS Notification
+    Notify -> SMS : Send SMS(failure reason,\nrefund confirmation)
+    SMS --> Notify : Delivery result
+else Push Notification
+    Notify -> Push : Send push notification\n(failure and refund status)
+    Push --> Notify : Delivery result
+end
+
+Notify --> Payment : Notification requests processed
+Payment --> API : Return Refunded status
+API --> Customer : Show payment failed\nand funds returned
+
+note over Payment, Wallet
+  Refund is completed only after
+  the hold is successfully released.
+
+  The payment lifecycle is:
+  SentToBiller -> Failed -> Refunded
+end note
+
+note over Wallet, Ledger
+  Wallet balances are derived from
+  ledger entries.
+
+  Every money movement must be recorded.
+  The available balance increases and
+  the held balance decreases.
+end note
+
+note over Payment, Biller
+  If the biller does not respond within
+  10 seconds, the payment becomes Unknown.
+  Funds remain held until the biller outcome
+  is confirmed. No automatic refund occurs.
+end note
+
+@enduml

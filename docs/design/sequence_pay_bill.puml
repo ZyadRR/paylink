@@ -1,0 +1,45 @@
+@startuml
+title PayLink - Sequence Diagram: Pay a Bill (Login to Confirmation)
+
+actor Customer
+participant "PayLink System" as PL
+participant "Biller System\n(ElectroCo/AquaCo/TopUpNet)" as Biller
+participant "Notification Service\n(SMS / Push)" as Notify
+
+Customer -> PL: Login (credentials)
+alt Wrong login
+  PL --> Customer: Login failed (show error)
+else Login successful
+  PL --> Customer: Login success
+
+  Customer -> PL: Select service and enter bill details
+  PL -> Biller: Send bill inquiry (service/account details)
+  Biller --> PL: Return bill amount
+  PL --> Customer: Show bill amount, service fee, total (fee preview)
+
+  Customer -> PL: Confirm payment (payment request + idempotency key)
+  PL -> PL: Validate limits, velocity, fraud checks
+
+  alt Insufficient available balance
+    PL --> Customer: Payment rejected (insufficient balance)
+  else Sufficient balance
+    PL -> PL: Hold total amount (FundsHeld)
+    PL -> Biller: Submit payment request (SentToBiller)
+
+    alt Payment failed (biller rejects or fails)
+      Biller --> PL: Payment failed result
+      PL -> PL: Release held funds (Failed)
+      PL -> Notify: Send failure notification (SMS/Push)
+      Notify --> PL: Notification accepted/scheduled
+      PL --> Customer: Confirmation: Payment Failed (with reference)
+    else Payment successful
+      Biller --> PL: Payment success result
+      PL -> PL: Mark payment Completed
+      PL -> Notify: Send success notification (SMS/Push)
+      Notify --> PL: Notification accepted/scheduled
+      PL --> Customer: Confirmation: Payment Completed (with reference)
+    end
+  end
+end
+
+@enduml
